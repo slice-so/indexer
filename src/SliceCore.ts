@@ -60,34 +60,34 @@ ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
     }
   })
 
-  // console.log({ allPayees })
+  console.log({ allPayees })
 
-  // const { items: existingPayees } = await db.Payee.findMany({
-  //   where: {
-  //     id: {
-  //       in: allPayees.map((p) => p.account)
-  //     }
-  //   }
-  // })
+  const { items: existingPayees } = await db.Payee.findMany({
+    where: {
+      id: {
+        in: allPayees.map((p) => p.account)
+      }
+    }
+  })
 
-  // console.log({ existingPayees })
+  console.log({ existingPayees })
 
-  // const existingPayeeIds = new Set(existingPayees.map((p) => p.id))
+  const existingPayeeIds = new Set(existingPayees.map((p) => p.id))
 
-  // const newPayees = allPayees.filter((p) => !existingPayeeIds.has(p.account))
+  const newPayees = allPayees.filter((p) => !existingPayeeIds.has(p.account))
 
-  // if (newPayees.length > 0) {
-  //   await db.Payee.createMany({
-  //     data: newPayees.map((p) => ({ id: p.account }))
-  //   })
-  // }
-
-  // Create any missing payee
-  for (const payee of allPayees) {
-    await db.Payee.upsert({
-      id: payee.account
+  if (newPayees.length > 0) {
+    await db.Payee.createMany({
+      data: newPayees.map((p) => ({ id: p.account }))
     })
   }
+
+  // // Create any missing payee
+  // for (const payee of allPayees) {
+  //   await db.Payee.upsert({
+  //     id: payee.account
+  //   })
+  // }
 
   // Create any missing currency
   const currenciesArray = [zeroAddress, ...currencies]
