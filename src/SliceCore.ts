@@ -2,6 +2,7 @@ import { ponder } from "@/generated"
 import { zeroAddress } from "viem"
 import { baseFee } from "./utils/constants"
 import { reducePayees } from "./utils/reducePayees"
+import { createPayee } from "./utils/createPayee"
 
 ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
   const {
@@ -21,18 +22,30 @@ ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
   } = event.args
   const creator = event.transaction.from
 
-  const creatorPayee = {
-    account: creator,
-    shares: 0,
-    transfersAllowedWhileLocked: false
-  }
-  const allPayees = reducePayees([creatorPayee, ...payees])
+  // Boolean flags ordered right to left: [isImmutable, currenciesControlled, productsControlled, acceptsAllCurrencies]
+  const isImmutable = (slicerFlags & 1) !== 0
+  const currenciesControlled = (slicerFlags & 2) !== 0
+  const productsControlled = (slicerFlags & 4) !== 0
+  const acceptsAllCurrencies = (slicerFlags & 8) !== 0
+
+  // Boolean flags ordered right to left: [isCustomRoyaltyActive, isRoyaltyReceiverSlicer, resliceAllowed, transferWhileControlledAllowed]
+  const isCustomRoyaltyActive = (sliceCoreFlags & 1) !== 0
+  const isRoyaltyReceiverSlicer = (sliceCoreFlags & 2) !== 0
+  const resliceAllowed = (sliceCoreFlags & 4) !== 0
+  const transferWhileControlledAllowed = (sliceCoreFlags & 8) !== 0
+
+  const allPayees = reducePayees([
+    createPayee(creator),
+    createPayee(slicerAddress),
+    ...payees
+  ])
 
   const totalSlices = payees.reduce(
     (acc, payee) => acc + BigInt(payee.shares),
     0n
   )
-  await db.Slicer.create({
+
+  const promiseSlicer = db.Slicer.create({
     id: tokenId,
     data: {
       slicerVersion,
@@ -43,78 +56,69 @@ ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
       releaseTimelock,
       transferableTimelock: transferTimelock,
       protocolFee: baseFee,
-      royaltyPercentage: 50,
+      royaltyPercentage: isCustomRoyaltyActive ? 0 : 50,
       productsModuleBalance: 0n,
       productsModuleReleased: 0n,
       referralFeeStore: 0n,
-      isImmutable: false,
-      currenciesControlled: false,
-      productsControlled: false,
-      resliceAllowed: false,
-      transferWhileControlledAllowed: false,
-      acceptsAllCurrencies: false,
+      isImmutable,
+      currenciesControlled,
+      productsControlled,
+      resliceAllowed,
+      transferWhileControlledAllowed,
+      acceptsAllCurrencies,
       storeClosed: false,
       creatorId: creator,
       controllerId: controller,
-      royaltyReceiverId: creator
+      royaltyReceiverId: isRoyaltyReceiverSlicer
+        ? slicerAddress
+        : controller != zeroAddress
+        ? controller
+        : creator
     }
   })
 
-  // console.log({ allPayees })
-
-  // const { items: existingPayees } = await db.Payee.findMany({
-  //   where: {
-  //     id: {
-  //       in: allPayees.map((p) => p.account)
-  //     }
-  //   }
-  // })
-
-  // console.log({ existingPayees })
-
-  // const existingPayeeIds = new Set(existingPayees.map((p) => p.id))
-
-  // const newPayees = allPayees.filter((p) => !existingPayeeIds.has(p.account))
-
-  // if (newPayees.length > 0) {
-  //   await db.Payee.createMany({
-  //     data: newPayees.map((p) => ({ id: p.account }))
-  //   })
-  // }
-
   // Create any missing payee
-  for (const payee of allPayees) {
-    await db.Payee.upsert({
+  const promisePayees = allPayees.map((payee) =>
+    db.Payee.upsert({
       id: payee.account
     })
-  }
+  )
 
   // Create any missing currency
   const currenciesArray = [zeroAddress, ...currencies]
-  for (const currency of currenciesArray) {
-    await db.Currency.upsert({
+  const promiseCurrencies = currenciesArray.map((currency) =>
+    db.Currency.upsert({
       id: currency
     })
-  }
+  )
 
-  await db.PayeeSlicer.createMany({
+  const promisePayeeSlicers = db.PayeeSlicer.createMany({
     data: allPayees.map(({ account, shares, transfersAllowedWhileLocked }) => ({
       id: `${account}-${tokenId}`,
       payeeId: account,
       slicerId: tokenId,
       slices: BigInt(shares),
-      transfersAllowedWhileLocked: transfersAllowedWhileLocked
+      transfersAllowedWhileLocked
     }))
   })
 
-  await db.CurrencySlicer.createMany({
+  const promiseCurrencySlicers = db.CurrencySlicer.createMany({
     data: currenciesArray.map((currency) => ({
       id: `${currency}-${tokenId}`,
       currencyId: currency,
       slicerId: tokenId,
       released: 0n,
       releasedToProtocol: 0n,
-      creatorFeePaid: 0n
+      creatorFeePaid: 0n,
+      referralFeePaid: 0n
     }))
   })
+
+  await Promise.all([
+    promiseSlicer,
+    ...promisePayees,
+    ...promiseCurrencies,
+    promisePayeeSlicers,
+    promiseCurrencySlicers
+  ])
 })
