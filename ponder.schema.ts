@@ -40,11 +40,11 @@ export default createSchema((p) => ({
     acceptedCurrencies: p.many("CurrencySlicer.slicerId"),
     childrenSlicers: p.many("SlicerRelation.parentSlicerId"),
     parentSlicers: p.many("SlicerRelation.childSlicerId"),
-    purchaseData: p.many("PurchaseData.slicerId")
+    orderSlicers: p.many("OrderSlicer.slicerId")
   }),
 
   SlicerRelation: p.createTable({
-    id: p.string(),
+    id: p.string(), //
     parentSlicerId: p.bigint().references("Slicer.id"),
     parentSlicer: p.one("parentSlicerId"),
     childSlicerId: p.bigint().references("Slicer.id"),
@@ -60,14 +60,13 @@ export default createSchema((p) => ({
     slicersControlled: p.many("Slicer.controllerId"),
     slicersRoyaltyReceiver: p.many("Slicer.royaltyReceiverId"),
     currencies: p.many("PayeeCurrency.payeeId"),
-    purchases: p.many("ProductPurchase.buyerId"),
     ordersMade: p.many("Order.buyerId"),
     ordersPaid: p.many("Order.payerId"),
     ordersReferred: p.many("Order.referrerId")
   }),
 
   PayeeSlicer: p.createTable({
-    id: p.string(),
+    id: p.string(), //
     payeeId: p.hex().references("Payee.id"),
     payee: p.one("payeeId"),
     slicerId: p.bigint().references("Slicer.id"),
@@ -79,7 +78,7 @@ export default createSchema((p) => ({
 
     // Relations
     currencyPayments: p.many("PayeeSlicerCurrency.payeeSlicerId"),
-    purchases: p.many("ProductPurchase.buyerSlicerId")
+    orderSlicers: p.many("OrderSlicer.buyerSlicerId")
   }),
 
   Currency: p.createTable({
@@ -88,11 +87,12 @@ export default createSchema((p) => ({
     // Relations
     slicers: p.many("CurrencySlicer.currencyId"),
     payees: p.many("PayeeCurrency.currencyId"),
-    products: p.many("ProductPrices.currencyId")
+    products: p.many("ProductPrices.currencyId"),
+    orderProducts: p.many("OrderProduct.currencyId")
   }),
 
   CurrencySlicer: p.createTable({
-    id: p.string(),
+    id: p.string(), //
     currencyId: p.hex().references("Currency.id"),
     currency: p.one("currencyId"),
     slicerId: p.bigint().references("Slicer.id"),
@@ -106,12 +106,12 @@ export default createSchema((p) => ({
 
     // Relations
     payeePayments: p.many("PayeeSlicerCurrency.currencySlicerId"),
-    releaseEvents: p.many("ReleaseEvent.currencySlicerId"),
-    purchases: p.many("ProductPurchase.currencySlicerId")
+    releaseEvents: p.many("ReleaseEvent.currencySlicerId")
+    // purchases: p.many("ProductPurchase.currencySlicerId") TODO: Replace with order?
   }),
 
   PayeeCurrency: p.createTable({
-    id: p.string(),
+    id: p.string(), //
     payeeId: p.hex().references("Payee.id"),
     payee: p.one("payeeId"),
     currencyId: p.hex().references("Currency.id"),
@@ -130,7 +130,7 @@ export default createSchema((p) => ({
   }),
 
   PayeeSlicerCurrency: p.createTable({
-    id: p.string(),
+    id: p.string(), //
     payeeSlicerId: p.string().references("PayeeSlicer.id"),
     payeeSlicer: p.one("payeeSlicerId"),
     currencySlicerId: p.string().references("CurrencySlicer.id"),
@@ -143,7 +143,7 @@ export default createSchema((p) => ({
   }),
 
   ReleaseEvent: p.createTable({
-    id: p.string(),
+    id: p.string(), //
 
     // Values
     amountReleased: p.bigint(),
@@ -185,20 +185,20 @@ export default createSchema((p) => ({
     extPreferredToken: p.boolean(),
     totalPurchases: p.bigint(),
     referralFeeProduct: p.bigint(),
+    lastPurchasedAtTimestamp: p.bigint(),
 
     // Relations
     slicerId: p.bigint().references("Slicer.id"),
     slicer: p.one("slicerId"),
 
-    purchaseData: p.many("PurchaseData.productId"),
+    orderProducts: p.many("OrderProduct.productId"),
     prices: p.many("ProductPrices.productId"),
-    purchases: p.many("ProductPurchase.productId"),
     subProducts: p.many("ProductRelation.parentProductId"),
     parentProducts: p.many("ProductRelation.childProductId")
   }),
 
   ProductRelation: p.createTable({
-    id: p.string(),
+    id: p.string(), //
     parentProductId: p.bigint().references("Product.id"),
     parentProduct: p.one("parentProductId"),
     childProductId: p.bigint().references("Product.id"),
@@ -206,7 +206,7 @@ export default createSchema((p) => ({
   }),
 
   ProductPrices: p.createTable({
-    id: p.string(),
+    id: p.string(), //
 
     // Values
     price: p.bigint(),
@@ -221,70 +221,15 @@ export default createSchema((p) => ({
     currency: p.one("currencyId")
   }),
 
-  ProductPurchase: p.createTable({
-    id: p.string(),
-
-    // Values
-    totalPaymentEth: p.bigint(),
-    totalPaymentCurrency: p.bigint(),
-    lastPurchasedAtTimestamp: p.bigint(),
-    totalQuantity: p.bigint(),
-    totalPurchases: p.bigint(),
-
-    // Relations
-    productId: p.bigint().references("Product.id"),
-    product: p.one("productId"),
-
-    buyerId: p.hex().references("Payee.id"),
-    buyer: p.one("buyerId"),
-
-    buyerSlicerId: p.string().references("PayeeSlicer.id"),
-    buyerSlicer: p.one("buyerSlicerId"),
-
-    currencySlicerId: p.string().references("CurrencySlicer.id"),
-    currencySlicer: p.one("currencySlicerId"),
-
-    purchaseData: p.many("PurchaseData.productPurchaseId")
-  }),
-
-  PurchaseData: p.createTable({
-    id: p.string(),
-
-    // Values
-    quantity: p.bigint(),
-    paymentEth: p.bigint(),
-    paymentCurrency: p.bigint(),
-    externalPaymentEth: p.bigint(),
-    externalPaymentCurrency: p.bigint(),
-    referralEth: p.bigint(),
-    referralCurrency: p.bigint(),
-    startPurchaseId: p.bigint(),
-    timestamp: p.bigint(),
-    transactionHash: p.hex(),
-
-    // Relations
-    slicerId: p.bigint().references("Slicer.id"),
-    slicer: p.one("slicerId"),
-
-    productId: p.bigint().references("Product.id"),
-    product: p.one("productId"),
-
-    orderId: p.hex().references("Order.id"),
-    order: p.one("orderId"),
-
-    productPurchaseId: p.string().references("ProductPurchase.id").optional(),
-    productPurchase: p.one("productPurchaseId"),
-
-    parentSlicerId: p.bigint().references("Slicer.id").optional(),
-    parentSlicer: p.one("parentSlicerId"),
-
-    parentProductId: p.bigint().references("Product.id").optional(),
-    parentProduct: p.one("parentProductId")
-  }),
-
   Order: p.createTable({
     id: p.hex(),
+
+    // Values
     timestamp: p.bigint(),
+    totalPaymentEth: p.bigint(),
+    totalPaymentCurrency: p.bigint(),
+    // totalReferralEth: p.bigint(),
+    // totalReferralCurrency: p.bigint(),
 
     // Relations
     payerId: p.hex().references("Payee.id"),
@@ -296,12 +241,59 @@ export default createSchema((p) => ({
     referrerId: p.hex().references("Payee.id"),
     referrer: p.one("referrerId"),
 
-    extraCosts: p.many("ExtraCost.orderId"),
-    purchaseData: p.many("PurchaseData.orderId")
+    orderSlicers: p.many("OrderSlicer.orderId"),
+    orderProducts: p.many("OrderProduct.orderId"),
+    extraCosts: p.many("ExtraCost.orderId")
+  }),
+
+  // TODO: Review these - what could be missing?
+
+  OrderSlicer: p.createTable({
+    id: p.string(), //
+    orderId: p.hex().references("Order.id"),
+    order: p.one("orderId"),
+    slicerId: p.bigint().references("Slicer.id"),
+    slicer: p.one("slicerId"),
+
+    // Relations
+    buyerSlicerId: p.string().references("PayeeSlicer.id"),
+    buyerSlicer: p.one("buyerSlicerId"),
+
+    orderProducts: p.many("OrderProduct.orderSlicerId")
+  }),
+
+  OrderProduct: p.createTable({
+    id: p.string(), //
+    orderId: p.hex().references("Order.id"),
+    order: p.one("orderId"),
+    productId: p.bigint().references("Product.id"),
+    product: p.one("productId"),
+
+    // Values
+    quantity: p.bigint(),
+    paymentEth: p.bigint(),
+    paymentCurrency: p.bigint(),
+    externalPaymentEth: p.bigint(),
+    externalPaymentCurrency: p.bigint(),
+    referralEth: p.bigint(),
+    referralCurrency: p.bigint(),
+
+    // Relations
+    orderSlicerId: p.string().references("OrderSlicer.id"),
+    orderSlicer: p.one("orderSlicerId"),
+
+    currencyId: p.hex().references("Currency.id"),
+    currency: p.one("currencyId")
+
+    // parentSlicerId: p.bigint().references("Slicer.id").optional(),
+    // parentSlicer: p.one("parentSlicerId"),
+
+    // parentProductId: p.bigint().references("Product.id").optional(),
+    // parentProduct: p.one("parentProductId")
   }),
 
   ExtraCost: p.createTable({
-    id: p.string(),
+    id: p.string(), //
 
     // Values
     recipient: p.hex().optional(),
