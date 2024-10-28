@@ -1,6 +1,6 @@
 import { ponder } from "@/generated"
 import { zeroAddress } from "viem"
-import { baseFee } from "./utils/constants"
+import { baseProtocolFee } from "./utils/constants"
 import { reducePayees } from "./utils/reducePayees"
 import { createPayee } from "./utils/createPayee"
 
@@ -55,7 +55,7 @@ ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
       createdAtTimestamp: event.block.timestamp,
       releaseTimelock,
       transferableTimelock: transferTimelock,
-      protocolFee: baseFee,
+      protocolFee: baseProtocolFee,
       royaltyPercentage: isCustomRoyaltyActive ? 0 : 50,
       productsModuleBalance: 0n,
       productsModuleReleased: 0n,

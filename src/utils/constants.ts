@@ -1,1 +1,1 @@
-export const baseFee = 10
+export const baseProtocolFee = 10
