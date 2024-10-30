@@ -1,47 +1,54 @@
 import { createSchema } from "@ponder/core"
 
 export default createSchema((p) => ({
-  Slicer: p.createTable({
-    id: p.bigint(),
+  Slicer: p.createTable(
+    {
+      id: p.bigint(),
 
-    // Values
-    slicerVersion: p.bigint(),
-    address: p.hex(),
-    slices: p.bigint(),
-    minimumSlices: p.bigint(),
-    createdAtTimestamp: p.bigint(),
-    releaseTimelock: p.bigint(),
-    transferableTimelock: p.int(),
-    protocolFee: p.int(),
-    royaltyPercentage: p.int(),
-    productsModuleBalance: p.bigint(),
-    productsModuleReleased: p.bigint(),
-    referralFeeStore: p.bigint(),
-    isImmutable: p.boolean(),
-    currenciesControlled: p.boolean(),
-    productsControlled: p.boolean(),
-    resliceAllowed: p.boolean(),
-    transferWhileControlledAllowed: p.boolean(),
-    acceptsAllCurrencies: p.boolean(),
-    storeClosed: p.boolean(),
+      // Values
+      name: p.string().optional(),
 
-    // Relations
-    creatorId: p.hex().references("Payee.id"),
-    creator: p.one("creatorId"),
+      slicerVersion: p.bigint(),
+      address: p.hex(),
+      slices: p.bigint(),
+      minimumSlices: p.bigint(),
+      createdAtTimestamp: p.bigint(),
+      releaseTimelock: p.bigint(),
+      transferableTimelock: p.int(),
+      protocolFee: p.int(),
+      royaltyPercentage: p.int(),
+      productsModuleBalance: p.bigint(),
+      productsModuleReleased: p.bigint(),
+      referralFeeStore: p.bigint(),
+      isImmutable: p.boolean(),
+      currenciesControlled: p.boolean(),
+      productsControlled: p.boolean(),
+      resliceAllowed: p.boolean(),
+      transferWhileControlledAllowed: p.boolean(),
+      acceptsAllCurrencies: p.boolean(),
+      storeClosed: p.boolean(),
 
-    controllerId: p.hex().references("Payee.id"),
-    controller: p.one("controllerId"),
+      // Relations
+      creatorId: p.hex().references("Payee.id"),
+      creator: p.one("creatorId"),
 
-    royaltyReceiverId: p.hex().references("Payee.id"),
-    royaltyReceiver: p.one("royaltyReceiverId"),
+      controllerId: p.hex().references("Payee.id"),
+      controller: p.one("controllerId"),
 
-    payees: p.many("PayeeSlicer.slicerId"),
-    products: p.many("Product.slicerId"),
-    acceptedCurrencies: p.many("CurrencySlicer.slicerId"),
-    childrenSlicers: p.many("SlicerRelation.parentSlicerId"),
-    parentSlicers: p.many("SlicerRelation.childSlicerId"),
-    orderSlicers: p.many("OrderSlicer.slicerId")
-  }),
+      royaltyReceiverId: p.hex().references("Payee.id"),
+      royaltyReceiver: p.one("royaltyReceiverId"),
+
+      payees: p.many("PayeeSlicer.slicerId"),
+      products: p.many("Product.slicerId"),
+      acceptedCurrencies: p.many("CurrencySlicer.slicerId"),
+      orderSlicers: p.many("OrderSlicer.slicerId"),
+      childrenSlicers: p.many("SlicerRelation.parentSlicerId"),
+      parentSlicers: p.many("SlicerRelation.childSlicerId")
+    },
+    {
+      slicerAddress: p.index("address")
+    }
+  ),
 
   SlicerRelation: p.createTable({
     id: p.string(), //
@@ -107,7 +114,6 @@ export default createSchema((p) => ({
     // Relations
     payeePayments: p.many("PayeeSlicerCurrency.currencySlicerId"),
     releaseEvents: p.many("ReleaseEvent.currencySlicerId")
-    // purchases: p.many("ProductPurchase.currencySlicerId") TODO: Replace with order?
   }),
 
   PayeeCurrency: p.createTable({
@@ -167,7 +173,6 @@ export default createSchema((p) => ({
     id: p.bigint(),
 
     // Values
-    categoryIndex: p.bigint(),
     isRemoved: p.boolean(),
     isFree: p.boolean(),
     isInfinite: p.boolean(),
@@ -191,10 +196,23 @@ export default createSchema((p) => ({
     slicerId: p.bigint().references("Slicer.id"),
     slicer: p.one("slicerId"),
 
+    categoryId: p.int().references("CategoryProduct.id"),
+    category: p.one("categoryId"),
+
     orderProducts: p.many("OrderProduct.productId"),
     prices: p.many("ProductPrices.productId"),
     subProducts: p.many("ProductRelation.parentProductId"),
     parentProducts: p.many("ProductRelation.childProductId")
+  }),
+
+  CategoryProduct: p.createTable({
+    id: p.int(),
+
+    // Values
+    name: p.string(),
+
+    // Relations
+    products: p.many("Product.categoryId")
   }),
 
   ProductRelation: p.createTable({
@@ -228,8 +246,8 @@ export default createSchema((p) => ({
     timestamp: p.bigint(),
     totalPaymentEth: p.bigint(),
     totalPaymentCurrency: p.bigint(),
-    // totalReferralEth: p.bigint(),
-    // totalReferralCurrency: p.bigint(),
+    totalReferralEth: p.bigint(),
+    totalReferralCurrency: p.bigint(),
 
     // Relations
     payerId: p.hex().references("Payee.id"),
@@ -245,8 +263,6 @@ export default createSchema((p) => ({
     orderProducts: p.many("OrderProduct.orderId"),
     extraCosts: p.many("ExtraCost.orderId")
   }),
-
-  // TODO: Review these - what could be missing?
 
   OrderSlicer: p.createTable({
     id: p.string(), //
@@ -283,13 +299,18 @@ export default createSchema((p) => ({
     orderSlicer: p.one("orderSlicerId"),
 
     currencyId: p.hex().references("Currency.id"),
-    currency: p.one("currencyId")
+    currency: p.one("currencyId"),
 
-    // parentSlicerId: p.bigint().references("Slicer.id").optional(),
-    // parentSlicer: p.one("parentSlicerId"),
+    orderParentProducts: p.many("OrderProductRelation.orderSubProductId"),
+    orderSubProducts: p.many("OrderProductRelation.orderParentProductId")
+  }),
 
-    // parentProductId: p.bigint().references("Product.id").optional(),
-    // parentProduct: p.one("parentProductId")
+  OrderProductRelation: p.createTable({
+    id: p.string(), //
+    orderParentProductId: p.string().references("OrderProduct.id"),
+    orderParentProduct: p.one("orderParentProductId"),
+    orderSubProductId: p.string().references("OrderProduct.id"),
+    orderSubProduct: p.one("orderSubProductId")
   }),
 
   ExtraCost: p.createTable({

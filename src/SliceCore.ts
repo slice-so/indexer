@@ -1,13 +1,13 @@
 import { ponder } from "@/generated"
 import { zeroAddress } from "viem"
-import { baseProtocolFee } from "./utils/constants"
+import { baseProtocolFee, defaultRoyaltyPercentage } from "./utils/constants"
 import { reducePayees } from "./utils/reducePayees"
 import { createPayee } from "./utils/createPayee"
 
 ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
   const {
     slicerAddress,
-    tokenId,
+    tokenId: slicerId,
     params: {
       payees,
       minimumShares,
@@ -46,7 +46,7 @@ ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
   )
 
   const promiseSlicer = db.Slicer.create({
-    id: tokenId,
+    id: slicerId,
     data: {
       slicerVersion,
       address: slicerAddress,
@@ -56,7 +56,7 @@ ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
       releaseTimelock,
       transferableTimelock: transferTimelock,
       protocolFee: baseProtocolFee,
-      royaltyPercentage: isCustomRoyaltyActive ? 0 : 50,
+      royaltyPercentage: isCustomRoyaltyActive ? 0 : defaultRoyaltyPercentage,
       productsModuleBalance: 0n,
       productsModuleReleased: 0n,
       referralFeeStore: 0n,
@@ -94,9 +94,9 @@ ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
 
   const promisePayeeSlicers = db.PayeeSlicer.createMany({
     data: allPayees.map(({ account, shares, transfersAllowedWhileLocked }) => ({
-      id: `${account}-${tokenId}`,
+      id: `${account}-${slicerId}`,
       payeeId: account,
-      slicerId: tokenId,
+      slicerId,
       slices: BigInt(shares),
       transfersAllowedWhileLocked
     }))
@@ -104,9 +104,9 @@ ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
 
   const promiseCurrencySlicers = db.CurrencySlicer.createMany({
     data: currenciesArray.map((currency) => ({
-      id: `${currency}-${tokenId}`,
+      id: `${currency}-${slicerId}`,
       currencyId: currency,
-      slicerId: tokenId,
+      slicerId,
       released: 0n,
       releasedToProtocol: 0n,
       creatorFeePaid: 0n,
@@ -121,4 +121,162 @@ ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
     promisePayeeSlicers,
     promiseCurrencySlicers
   ])
+})
+
+ponder.on("SliceCore:TokenResliced", async ({ event, context: { db } }) => {
+  const { tokenId: slicerId, accounts, tokensDiffs } = event.args
+
+  // Create any missing payee
+  const promisePayees = accounts.map((address) =>
+    db.Payee.upsert({
+      id: address
+    })
+  )
+
+  let totalDiff = 0n
+  const promisePayeeSlicers = accounts.map((address, index) => {
+    const tokenDiff = BigInt(tokensDiffs[index]!)
+
+    totalDiff += tokenDiff
+
+    return db.PayeeSlicer.upsert({
+      id: `${address}-${slicerId}`,
+      create: {
+        payeeId: address,
+        slicerId,
+        slices: tokenDiff,
+        transfersAllowedWhileLocked: false
+      },
+      update: ({ current }) => ({
+        slices: current.slices + tokenDiff
+      })
+    })
+  })
+
+  const promiseSlicer = db.Slicer.update({
+    id: slicerId,
+    data: ({ current }) => ({ slices: current.slices + totalDiff })
+  })
+
+  await Promise.all([
+    promiseSlicer,
+    ...promisePayees,
+    ...promisePayeeSlicers,
+    promiseSlicer
+  ])
+})
+
+ponder.on(
+  "SliceCore:SlicerControllerSet",
+  async ({ event, context: { db } }) => {
+    const { tokenId: slicerId, slicerController } = event.args
+
+    const promisePayee = db.Payee.upsert({
+      id: slicerController
+    })
+
+    const promiseSlicer = db.Slicer.update({
+      id: slicerId,
+      data: ({ current }) => ({
+        royaltyReceiverId:
+          current.royaltyReceiverId !== current.address
+            ? slicerController
+            : current.royaltyReceiverId,
+        controllerId: slicerController
+      })
+    })
+
+    await Promise.all([promisePayee, promiseSlicer])
+  }
+)
+
+ponder.on("SliceCore:RoyaltySet", async ({ event, context: { db } }) => {
+  const {
+    tokenId: slicerId,
+    isSlicer,
+    isActive,
+    royaltyPercentage
+  } = event.args
+
+  await db.Slicer.update({
+    id: slicerId,
+    data: ({ current }) => ({
+      royaltyPercentage: isActive
+        ? Number(royaltyPercentage)
+        : defaultRoyaltyPercentage,
+      royaltyReceiverId: isSlicer
+        ? current.address
+        : current.controllerId !== zeroAddress
+        ? current.controllerId
+        : current.creatorId
+    })
+  })
+})
+
+ponder.on("SliceCore:TransferSingle", async ({ event, context: { db } }) => {
+  const { from, to, id: slicerId, value } = event.args
+
+  if (from !== zeroAddress && to !== zeroAddress && from !== to) {
+    const promisePayeeTo = db.Payee.upsert({
+      id: to
+    })
+
+    const promisePayeeSlicerFrom = db.PayeeSlicer.update({
+      id: `${from}-${slicerId}`,
+      data: ({ current }) => ({ slices: current.slices - value })
+    })
+
+    const promisePayeeSlicerTo = db.PayeeSlicer.upsert({
+      id: `${to}-${slicerId}`,
+      create: {
+        payeeId: to,
+        slicerId,
+        slices: value,
+        transfersAllowedWhileLocked: false
+      },
+      update: ({ current }) => ({ slices: current.slices + value })
+    })
+
+    await Promise.all([
+      promisePayeeTo,
+      promisePayeeSlicerFrom,
+      promisePayeeSlicerTo
+    ])
+  }
+})
+
+ponder.on("SliceCore:TransferBatch", async ({ event, context: { db } }) => {
+  const { from, to, ids, values } = event.args
+
+  if (from !== zeroAddress && to !== zeroAddress && from !== to) {
+    const promisePayeeTo = db.Payee.upsert({
+      id: to
+    })
+
+    const promisePayeeSlicerFrom = ids.map((id, index) =>
+      db.PayeeSlicer.update({
+        id: `${from}-${id}`,
+        data: ({ current }) => ({ slices: current.slices - values[index]! })
+      })
+    )
+
+    const promisePayeeSlicerTo = ids.map((id, index) =>
+      db.PayeeSlicer.upsert({
+        id: `${to}-${id}`,
+        create: {
+          payeeId: to,
+          slicerId: id,
+          slices: values[index]!,
+          transfersAllowedWhileLocked: false
+        },
+        update: ({ current }) => ({ slices: current.slices + values[index]! })
+      })
+    )
+
+    await Promise.all([
+      promisePayeeTo,
+      ...promisePayeeSlicerFrom,
+      ...promisePayeeSlicerTo
+    ])
+  }
 })

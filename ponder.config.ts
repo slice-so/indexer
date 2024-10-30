@@ -4,9 +4,10 @@ import { http } from "viem"
 import { FundsModule as FundsModuleAbi, SlicerV1 } from "./abis/v1"
 import { ProductsModuleV2, SliceCoreV2, SlicerV2 } from "./abis/v2"
 import { ProductsModuleV3 } from "./abis/v3"
+import { ERC1155 } from "./abis/common/ERC1155"
 
 const ProductsModuleAbi = mergeAbis([ProductsModuleV2, ProductsModuleV3])
-const SliceCoreAbi = SliceCoreV2
+const SliceCoreAbi = mergeAbis([SliceCoreV2, ERC1155])
 const SlicerAbi = mergeAbis([SlicerV1, SlicerV2])
 
 export default createConfig({
