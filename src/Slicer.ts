@@ -47,14 +47,17 @@ ponder.on("Slicer:CurrenciesAdded", async ({ event, context: { db } }) => {
   })
 
   const missingCurrencies = currencies.filter(
-    (currency) => !currencySlicers.some((cs) => cs.currencyId === currency)
+    (currency) =>
+      !currencySlicers.some(
+        (cs) => cs.currencyId.toLowerCase() === currency.toLowerCase()
+      )
   )
 
-  const promiseCurrencies = db.Currency.createMany({
-    data: missingCurrencies.map((currency) => ({
+  const promiseCurrencies = currencies.map((currency) =>
+    db.Currency.upsert({
       id: currency
-    }))
-  })
+    })
+  )
 
   const promiseCurrencySlicers = db.CurrencySlicer.createMany({
     data: missingCurrencies.map((currency) => ({
@@ -68,7 +71,7 @@ ponder.on("Slicer:CurrenciesAdded", async ({ event, context: { db } }) => {
     }))
   })
 
-  await Promise.all([promiseCurrencies, promiseCurrencySlicers])
+  await Promise.all([...promiseCurrencies, promiseCurrencySlicers])
 })
 
 ponder.on("Slicer:ChildSlicerSet", async ({ event, context: { db } }) => {
