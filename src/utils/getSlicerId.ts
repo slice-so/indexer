@@ -1,5 +1,10 @@
+import { Context } from "@/generated"
+
 // TODO: Find a better way to get the slicer id
-export const getSlicerId = async (slicerAddress: `0x${string}`, db: any) => {
+export const getSlicerId = async (
+  slicerAddress: `0x${string}`,
+  db: Context["db"]
+) => {
   const { items: slicers } = await db.Slicer.findMany({
     where: {
       address: slicerAddress

@@ -1,6 +1,7 @@
-import { ponder } from "@/generated"
+import { Context, ponder } from "@/generated"
 import { baseProtocolFee } from "./utils/constants"
 import { getSlicerId } from "./utils/getSlicerId"
+import { Address } from "viem"
 
 ponder.on(
   "Slicer:Released(address indexed payee, address indexed currency, uint256 amountReleased, uint256 protocolPayment)",
@@ -117,13 +118,13 @@ const handleReleased = async ({
   db,
   creatorPayment = 0n
 }: {
-  slicerAddress: `0x${string}`
-  payee: `0x${string}`
-  currency: `0x${string}`
+  slicerAddress: Address
+  payee: Address
+  currency: Address
   amountReleased: bigint
   protocolPayment: bigint
   timestamp: bigint
-  db: any
+  db: Context["db"]
   creatorPayment?: bigint
 }) => {
   const slicerId = await getSlicerId(slicerAddress, db)
