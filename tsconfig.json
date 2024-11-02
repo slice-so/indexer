@@ -17,6 +17,10 @@
     "noEmit": true,
     "lib": ["ES2022"],
     "target": "ES2022",
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"]
+    },
 
     // Skip type checking for node modules
     "skipLibCheck": true
