@@ -31,6 +31,16 @@ export const ProductsModule = [
 	},
 	{
 		inputs: [],
+		name: "InvalidCategory",
+		type: "error"
+	},
+	{
+		inputs: [],
+		name: "InvalidProductType",
+		type: "error"
+	},
+	{
+		inputs: [],
 		name: "NoDelegatecall",
 		type: "error"
 	},
@@ -94,6 +104,31 @@ export const ProductsModule = [
 			}
 		],
 		name: "BeaconUpgraded",
+		type: "event"
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "categoryId",
+				type: "uint256"
+			},
+			{
+				indexed: false,
+				internalType: "uint16",
+				name: "parentCategoryId",
+				type: "uint16"
+			},
+			{
+				indexed: false,
+				internalType: "string",
+				name: "name",
+				type: "string"
+			}
+		],
+		name: "CategorySet",
 		type: "event"
 	},
 	{
@@ -250,12 +285,6 @@ export const ProductsModule = [
 				type: "uint256"
 			},
 			{
-				indexed: true,
-				internalType: "uint256",
-				name: "categoryIndex",
-				type: "uint256"
-			},
-			{
 				indexed: false,
 				internalType: "address",
 				name: "creator",
@@ -321,6 +350,16 @@ export const ProductsModule = [
 						internalType: "uint32",
 						name: "availableUnits",
 						type: "uint32"
+					},
+					{
+						internalType: "uint16",
+						name: "categoryId",
+						type: "uint16"
+					},
+					{
+						internalType: "uint16",
+						name: "productTypeId",
+						type: "uint16"
 					},
 					{
 						internalType: "uint8",
@@ -451,34 +490,57 @@ export const ProductsModule = [
 		anonymous: false,
 		inputs: [
 			{
-				indexed: true,
-				internalType: "uint256",
-				name: "slicerId",
-				type: "uint256"
-			},
-			{
-				indexed: true,
-				internalType: "uint256",
-				name: "productId",
-				type: "uint256"
-			},
-			{
+				components: [
+					{
+						internalType: "uint256",
+						name: "slicerId",
+						type: "uint256"
+					},
+					{
+						internalType: "uint256",
+						name: "productId",
+						type: "uint256"
+					},
+					{
+						internalType: "uint8",
+						name: "newMaxUnits",
+						type: "uint8"
+					},
+					{
+						internalType: "bool",
+						name: "isFree",
+						type: "bool"
+					},
+					{
+						internalType: "bool",
+						name: "isInfinite",
+						type: "bool"
+					},
+					{
+						internalType: "uint32",
+						name: "newUnits",
+						type: "uint32"
+					},
+					{
+						internalType: "uint256",
+						name: "referralFeeProduct",
+						type: "uint256"
+					},
+					{
+						internalType: "uint256",
+						name: "categoryId",
+						type: "uint256"
+					},
+					{
+						internalType: "uint256",
+						name: "productTypeId",
+						type: "uint256"
+					}
+				],
 				indexed: false,
-				internalType: "uint8",
-				name: "maxUnitsPerBuyer",
-				type: "uint8"
-			},
-			{
-				indexed: false,
-				internalType: "bool",
-				name: "isFree",
-				type: "bool"
-			},
-			{
-				indexed: false,
-				internalType: "bool",
-				name: "isInfinite",
-				type: "bool"
+				internalType: "struct EditProductParams",
+				name: "params",
+				type: "tuple"
 			},
 			{
 				indexed: false,
@@ -513,12 +575,6 @@ export const ProductsModule = [
 				internalType: "struct CurrencyPrice[]",
 				name: "currencyPrices",
 				type: "tuple[]"
-			},
-			{
-				indexed: false,
-				internalType: "uint256",
-				name: "referralFeeProduct",
-				type: "uint256"
 			}
 		],
 		name: "ProductInfoChanged",
@@ -630,6 +686,37 @@ export const ProductsModule = [
 		anonymous: false,
 		inputs: [
 			{
+				indexed: false,
+				internalType: "uint256",
+				name: "slicerId",
+				type: "uint256"
+			},
+			{
+				indexed: false,
+				internalType: "uint256",
+				name: "productTypeId",
+				type: "uint256"
+			},
+			{
+				indexed: false,
+				internalType: "uint16",
+				name: "parentProductTypeId",
+				type: "uint16"
+			},
+			{
+				indexed: false,
+				internalType: "string",
+				name: "name",
+				type: "string"
+			}
+		],
+		name: "ProductTypeSet",
+		type: "event"
+	},
+	{
+		anonymous: false,
+		inputs: [
+			{
 				indexed: true,
 				internalType: "address",
 				name: "buyer",
@@ -726,6 +813,29 @@ export const ProductsModule = [
 		inputs: [
 			{
 				internalType: "uint256",
+				name: "categoryId",
+				type: "uint256"
+			},
+			{
+				internalType: "uint16",
+				name: "parentCategoryId",
+				type: "uint16"
+			},
+			{
+				internalType: "string",
+				name: "name",
+				type: "string"
+			}
+		],
+		name: "_setCategory",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function"
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint256",
 				name: "slicerId",
 				type: "uint256"
 			},
@@ -812,6 +922,16 @@ export const ProductsModule = [
 						internalType: "uint32",
 						name: "availableUnits",
 						type: "uint32"
+					},
+					{
+						internalType: "uint16",
+						name: "categoryId",
+						type: "uint16"
+					},
+					{
+						internalType: "uint16",
+						name: "productTypeId",
+						type: "uint16"
 					},
 					{
 						internalType: "uint8",
@@ -916,6 +1036,30 @@ export const ProductsModule = [
 		type: "function"
 	},
 	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "",
+				type: "uint256"
+			}
+		],
+		name: "categories",
+		outputs: [
+			{
+				internalType: "string",
+				name: "name",
+				type: "string"
+			},
+			{
+				internalType: "uint16",
+				name: "parentCategoryId",
+				type: "uint16"
+			}
+		],
+		stateMutability: "view",
+		type: "function"
+	},
+	{
 		inputs: [],
 		name: "fundsModule",
 		outputs: [
@@ -962,6 +1106,25 @@ export const ProductsModule = [
 			}
 		],
 		stateMutability: "view",
+		type: "function"
+	},
+	{
+		inputs: [
+			{
+				internalType: "bytes[]",
+				name: "data",
+				type: "bytes[]"
+			}
+		],
+		name: "multicall",
+		outputs: [
+			{
+				internalType: "bytes[]",
+				name: "results",
+				type: "bytes[]"
+			}
+		],
+		stateMutability: "nonpayable",
 		type: "function"
 	},
 	{
@@ -1308,6 +1471,48 @@ export const ProductsModule = [
 				internalType: "struct PayWithAuthorizationParams",
 				name: "authorizationParams",
 				type: "tuple"
+			},
+			{
+				components: [
+					{
+						internalType: "address",
+						name: "recipient",
+						type: "address"
+					},
+					{
+						internalType: "uint128",
+						name: "slicerId",
+						type: "uint128"
+					},
+					{
+						internalType: "uint128",
+						name: "amount",
+						type: "uint128"
+					},
+					{
+						internalType: "address",
+						name: "currency",
+						type: "address"
+					},
+					{
+						internalType: "string",
+						name: "description",
+						type: "string"
+					}
+				],
+				internalType: "struct ExtraCost[]",
+				name: "extraCosts",
+				type: "tuple[]"
+			},
+			{
+				internalType: "address",
+				name: "referrer",
+				type: "address"
+			},
+			{
+				internalType: "contract IERC20Permit",
+				name: "currency",
+				type: "address"
 			}
 		],
 		name: "payWithAuthorization",
@@ -1524,6 +1729,35 @@ export const ProductsModule = [
 		type: "function"
 	},
 	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "",
+				type: "uint256"
+			},
+			{
+				internalType: "uint256",
+				name: "",
+				type: "uint256"
+			}
+		],
+		name: "productTypes",
+		outputs: [
+			{
+				internalType: "string",
+				name: "name",
+				type: "string"
+			},
+			{
+				internalType: "uint16",
+				name: "parentProductTypeId",
+				type: "uint16"
+			}
+		],
+		stateMutability: "view",
+		type: "function"
+	},
+	{
 		inputs: [],
 		name: "proxiableUUID",
 		outputs: [
@@ -1564,39 +1798,56 @@ export const ProductsModule = [
 	{
 		inputs: [
 			{
-				internalType: "uint256",
-				name: "slicerId",
-				type: "uint256"
-			},
-			{
-				internalType: "uint256",
-				name: "productId",
-				type: "uint256"
-			},
-			{
-				internalType: "uint8",
-				name: "newMaxUnits",
-				type: "uint8"
-			},
-			{
-				internalType: "bool",
-				name: "isFree",
-				type: "bool"
-			},
-			{
-				internalType: "bool",
-				name: "isInfinite",
-				type: "bool"
-			},
-			{
-				internalType: "uint32",
-				name: "newUnits",
-				type: "uint32"
-			},
-			{
-				internalType: "uint256",
-				name: "referralFeeProduct",
-				type: "uint256"
+				components: [
+					{
+						internalType: "uint256",
+						name: "slicerId",
+						type: "uint256"
+					},
+					{
+						internalType: "uint256",
+						name: "productId",
+						type: "uint256"
+					},
+					{
+						internalType: "uint8",
+						name: "newMaxUnits",
+						type: "uint8"
+					},
+					{
+						internalType: "bool",
+						name: "isFree",
+						type: "bool"
+					},
+					{
+						internalType: "bool",
+						name: "isInfinite",
+						type: "bool"
+					},
+					{
+						internalType: "uint32",
+						name: "newUnits",
+						type: "uint32"
+					},
+					{
+						internalType: "uint256",
+						name: "referralFeeProduct",
+						type: "uint256"
+					},
+					{
+						internalType: "uint256",
+						name: "categoryId",
+						type: "uint256"
+					},
+					{
+						internalType: "uint256",
+						name: "productTypeId",
+						type: "uint256"
+					}
+				],
+				internalType: "struct EditProductParams",
+				name: "params",
+				type: "tuple"
 			},
 			{
 				components: [
@@ -1659,6 +1910,34 @@ export const ProductsModule = [
 			}
 		],
 		name: "setProductInfo",
+		outputs: [],
+		stateMutability: "nonpayable",
+		type: "function"
+	},
+	{
+		inputs: [
+			{
+				internalType: "uint256",
+				name: "slicerId",
+				type: "uint256"
+			},
+			{
+				internalType: "uint256",
+				name: "productTypeId",
+				type: "uint256"
+			},
+			{
+				internalType: "uint16",
+				name: "parentProductTypeId",
+				type: "uint16"
+			},
+			{
+				internalType: "string",
+				name: "name",
+				type: "string"
+			}
+		],
+		name: "setProductType",
 		outputs: [],
 		stateMutability: "nonpayable",
 		type: "function"

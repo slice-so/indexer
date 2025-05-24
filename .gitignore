@@ -18,4 +18,4 @@ yarn-error.log*
 /.ponder/
 
 # Misc
-/subgraph-mappings
+/subgraph

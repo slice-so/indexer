@@ -1,15 +1,20 @@
-import { Context } from "@/generated"
+import type { Context } from "ponder:registry"
+import { slicer as slicerTable } from "ponder:schema"
+import { eq } from "drizzle-orm"
 
-// TODO: Find a better way to get the slicer id
 export const getSlicerId = async (
-  slicerAddress: `0x${string}`,
-  db: Context["db"]
+	slicerAddress: `0x${string}`,
+	db: Context["db"]
 ) => {
-  const { items: slicers } = await db.Slicer.findMany({
-    where: {
-      address: slicerAddress
-    },
-    limit: 1
-  })
-  return slicers[0]!.id
+	const slicers = await db.sql
+		.select()
+		.from(slicerTable)
+		.where(eq(slicerTable.address, slicerAddress))
+		.limit(1)
+
+	if (!slicers[0]) {
+		throw new Error("Slicer not found")
+	}
+
+	return slicers[0].id
 }
