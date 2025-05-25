@@ -388,9 +388,9 @@ export const categoryProductRelations = relations(
 		}),
 		subCategories: many(categoryProduct),
 		products: many(product),
-		ancestors: many(categoryProductHierarchy, { relationName: "descendantId" }),
+		ancestors: many(categoryProductHierarchy, { relationName: "descendant" }),
 		descendants: many(categoryProductHierarchy, {
-			relationName: "ancestorId"
+			relationName: "ancestor"
 		}),
 		orderProducts: many(orderProduct)
 	})
@@ -421,8 +421,8 @@ export const productTypeRelations = relations(productType, ({ one, many }) => ({
 	}),
 	subProductTypes: many(productType),
 	products: many(product),
-	ancestors: many(productTypeHierarchy, { relationName: "descendantId" }),
-	descendants: many(productTypeHierarchy, { relationName: "ancestorId" })
+	ancestors: many(productTypeHierarchy, { relationName: "descendant" }),
+	descendants: many(productTypeHierarchy, { relationName: "ancestor" })
 }))
 
 export const productTypeHierRelations = relations(
