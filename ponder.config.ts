@@ -1,6 +1,6 @@
 import { createConfig, factory, mergeAbis } from "ponder"
 
-import { parseAbiItem } from "viem"
+import type { AbiEvent } from "viem"
 import { AggregatorV3InterfaceAbi } from "./abis/common/AggregatorV3InterfaceAbi"
 import { ERC1155 } from "./abis/common/ERC1155"
 import { FundsModule, SlicerV1 } from "./abis/v1"
@@ -45,9 +45,7 @@ export default createConfig({
 				// The address of the factory contract that creates instances of this child contract.
 				address: "0x5Cef0380cE0aD3DAEefef8bDb85dBDeD7965adf9",
 				// The event emitted by the factory that announces a new instance of this child contract.
-				event: parseAbiItem(
-					"event TokenSliced(address indexed slicerAddress, uint256 indexed tokenId, ((address account, uint32 shares, bool transfersAllowedWhileLocked)[] payees, uint256 minimumShares, address[] currencies, uint256 releaseTimelock, uint40 transferTimelock, address controller, uint8 slicerFlags, uint8 sliceCoreFlags) params, uint256 indexed slicerVersion)"
-				),
+				event: SliceCoreAbi.find((x) => x.name === "TokenSliced") as AbiEvent,
 				// The name of the parameter that contains the address of the new child contract.
 				parameter: "slicerAddress"
 			})
