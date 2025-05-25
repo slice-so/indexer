@@ -400,10 +400,12 @@ export const categoryProductHierRelations = relations(
   categoryProductHierarchy,
   ({ one }) => ({
     ancestor: one(categoryProduct, {
+      relationName: "ancestor",
       fields: [categoryProductHierarchy.ancestorId],
       references: [categoryProduct.id]
     }),
     descendant: one(categoryProduct, {
+      relationName: "descendant",
       fields: [categoryProductHierarchy.descendantId],
       references: [categoryProduct.id]
     })
@@ -433,10 +435,12 @@ export const productTypeHierRelations = relations(
       references: [slicer.id]
     }),
     ancestor: one(productType, {
+      relationName: "ancestor",
       fields: [productTypeHierarchy.slicerId, productTypeHierarchy.ancestorId],
       references: [productType.slicerId, productType.productTypeId]
     }),
     descendant: one(productType, {
+      relationName: "descendant",
       fields: [
         productTypeHierarchy.slicerId,
         productTypeHierarchy.descendantId
