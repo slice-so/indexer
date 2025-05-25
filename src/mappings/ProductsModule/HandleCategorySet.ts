@@ -25,17 +25,16 @@ ponder.on(
   async ({ event: { args }, context: { db } }) => {
     const { categoryId, parentCategoryId: newParentCategoryId, name } = args
 
-    const [category, newParentCategory] = await Promise.all([
-      getCategoryProduct(db, categoryId),
-      newParentCategoryId
-        ? db.sql.query.categoryProduct.findFirst({
-            where: eq(categoryProduct.id, Number(newParentCategoryId)),
-            with: {
-              ancestors: true
-            }
-          })
-        : null
-    ])
+    const category = await getCategoryProduct(db, categoryId)
+
+    const newParentCategory = newParentCategoryId
+      ? await db.sql.query.categoryProduct.findFirst({
+          where: eq(categoryProduct.id, Number(newParentCategoryId)),
+          with: {
+            ancestors: true
+          }
+        })
+      : null
 
     await db
       .insert(categoryProduct)

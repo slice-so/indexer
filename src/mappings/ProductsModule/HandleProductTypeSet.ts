@@ -40,20 +40,23 @@ ponder.on(
       name
     } = args
 
-    const [productType, newParentProductType] = await Promise.all([
-      getProductType(db, Number(slicerId), Number(productTypeId)),
-      newParentProductTypeId
-        ? db.sql.query.productType.findFirst({
-            where: and(
-              eq(productTypeTable.slicerId, Number(slicerId)),
-              eq(productTypeTable.productTypeId, Number(newParentProductTypeId))
-            ),
-            with: {
-              ancestors: true
-            }
-          })
-        : null
-    ])
+    const productType = await getProductType(
+      db,
+      Number(slicerId),
+      Number(productTypeId)
+    )
+
+    const newParentProductType = newParentProductTypeId
+      ? await db.sql.query.productType.findFirst({
+          where: and(
+            eq(productTypeTable.slicerId, Number(slicerId)),
+            eq(productTypeTable.productTypeId, Number(newParentProductTypeId))
+          ),
+          with: {
+            ancestors: true
+          }
+        })
+      : null
 
     await db
       .insert(productTypeTable)
