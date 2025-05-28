@@ -60,7 +60,7 @@ const handleProductPaid = async ({
   const totalPaymentEth = price.eth + price.ethExternalCall;
   const totalPaymentCurrency = price.currency + price.currencyExternalCall;
 
-  const product = await db.find(productTable, {
+  let product = await db.find(productTable, {
     slicerId,
     id: productId,
   });
@@ -73,7 +73,7 @@ const handleProductPaid = async ({
     externalPaymentEthUsd,
     paymentCurrencyUsd,
     externalPaymentCurrencyUsd,
-    productResult,
+    updatedProduct,
     orderSlicer,
   ] = await Promise.all([
     getUsdcAmount(context, zeroAddress, price.eth),
@@ -91,6 +91,8 @@ const handleProductPaid = async ({
       slicerId,
     }),
   ]);
+
+  product = updatedProduct;
 
   const totalPaymentUsd =
     paymentEthUsd +
