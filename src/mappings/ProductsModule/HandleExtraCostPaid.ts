@@ -1,32 +1,30 @@
-import { type Context, ponder } from "ponder:registry"
+import { type Context, ponder } from "ponder:registry";
 import {
   extraCost,
   order,
   orderSlicer,
   slicer,
+  slicerAddressToSlicerId,
   slicerStatsByDay,
   slicerStatsByMonth,
   slicerStatsByWeek,
   slicerStatsByYear,
-  slicer as slicerTable
-} from "ponder:schema"
-import { getDates, getUsdcAmount, upsertPayee } from "@/utils"
-import { eq } from "ponder"
-import { zeroAddress } from "viem"
+} from "ponder:schema";
+import { getDates, getUsdcAmount, upsertPayee } from "@/utils";
+import { zeroAddress } from "viem";
 
 ponder.on(
   "ProductsModule:ExtraCostPaid",
   async ({ event: { args, block, transaction }, context }) => {
-    const { db } = context
-    const { currency, amount, description, recipient } = args
+    const { db } = context;
+    const { currency, amount, description, recipient } = args;
 
-    const [slicer, amountUsd] = await Promise.all([
-      db.sql.query.slicer.findFirst({
-        where: eq(slicerTable.address, recipient)
-      }),
-      getUsdcAmount(context, currency, amount)
-    ])
-    const slicerId = slicer?.id
+    const [slicerMappingResult, amountUsd] = await Promise.all([
+      db.find(slicerAddressToSlicerId, { slicerAddress: recipient }),
+      getUsdcAmount(context, currency, amount),
+    ]);
+
+    const slicerId = slicerMappingResult?.slicerId;
 
     const extraCostPromise = db
       .insert(extraCost)
@@ -37,14 +35,14 @@ ponder.on(
         description,
         slicerId: slicerId ?? undefined,
         amount,
-        amountUsd
+        amountUsd,
       })
       .onConflictDoUpdate((row) => ({
         amount: row.amount + amount,
-        amountUsd: row.amountUsd + amountUsd
-      }))
+        amountUsd: row.amountUsd + amountUsd,
+      }));
 
-    const payeePromise = upsertPayee(db, transaction.from)
+    const payeePromise = upsertPayee(db, transaction.from);
 
     // edge case: if the order is created in this event, it means no products were purchased.
     const orderPromise = db
@@ -56,40 +54,40 @@ ponder.on(
         totalReferralUsd: 0n,
         payerId: transaction.from,
         buyerId: zeroAddress,
-        referrerId: zeroAddress
+        referrerId: zeroAddress,
       })
-      .onConflictDoNothing()
+      .onConflictDoNothing();
 
-    const orderSlicerPromises = []
-    if (slicer) {
+    const orderSlicerPromises = [];
+    if (slicerId) {
       const existingOrderSlicer = await db.find(orderSlicer, {
         orderId: transaction.hash,
-        slicerId: slicer.id
-      })
+        slicerId,
+      });
 
       orderSlicerPromises.push(
         db
           .insert(orderSlicer)
           .values({
             orderId: transaction.hash,
-            slicerId: slicer.id,
+            slicerId,
             totalPaymentUsd: amountUsd,
-            totalReferralUsd: 0n
+            totalReferralUsd: 0n,
           })
           .onConflictDoUpdate((row) => ({
-            totalPaymentUsd: row.totalPaymentUsd + amountUsd
+            totalPaymentUsd: row.totalPaymentUsd + amountUsd,
           }))
-      )
+      );
 
       if (!existingOrderSlicer) {
         orderSlicerPromises.push(
           ...updateSlicerStatsTotalOrders({
             db,
-            slicerId: slicer.id,
+            slicerId,
             timestamp: block.timestamp,
-            amountUsd
+            amountUsd,
           })
-        )
+        );
       }
     }
 
@@ -97,34 +95,34 @@ ponder.on(
       extraCostPromise,
       payeePromise,
       orderPromise,
-      ...orderSlicerPromises
-    ])
+      ...orderSlicerPromises,
+    ]);
   }
-)
+);
 
 const updateSlicerStatsTotalOrders = ({
   db,
   slicerId,
   timestamp,
-  amountUsd
+  amountUsd,
 }: {
-  db: Context["db"]
-  slicerId: number
-  timestamp: bigint
-  amountUsd: bigint
+  db: Context["db"];
+  slicerId: number;
+  timestamp: bigint;
+  amountUsd: bigint;
 }) => {
-  const promises = []
+  const promises = [];
 
   // Update slicer and stats tables for new orderSlicer (i.e. new order for this slicer)
   const { currentDay, currentWeek, currentMonth, currentYear } =
-    getDates(timestamp)
+    getDates(timestamp);
 
   // Update slicer totalOrders
   promises.push(
     db.update(slicer, { id: slicerId }).set((row) => ({
-      totalOrders: row.totalOrders + 1n
+      totalOrders: row.totalOrders + 1n,
     }))
-  )
+  );
 
   // Upsert stats by year
   promises.push(
@@ -135,13 +133,13 @@ const updateSlicerStatsTotalOrders = ({
         year: currentYear,
         totalOrders: 1n,
         totalProductsPurchased: 0n,
-        totalEarnedUsd: amountUsd
+        totalEarnedUsd: amountUsd,
       })
       .onConflictDoUpdate((row) => ({
         totalOrders: row.totalOrders + 1n,
-        totalEarnedUsd: row.totalEarnedUsd + amountUsd
+        totalEarnedUsd: row.totalEarnedUsd + amountUsd,
       }))
-  )
+  );
 
   // Upsert stats by month
   promises.push(
@@ -153,13 +151,13 @@ const updateSlicerStatsTotalOrders = ({
         month: currentMonth,
         totalOrders: 1n,
         totalProductsPurchased: 0n,
-        totalEarnedUsd: amountUsd
+        totalEarnedUsd: amountUsd,
       })
       .onConflictDoUpdate((row) => ({
         totalOrders: row.totalOrders + 1n,
-        totalEarnedUsd: row.totalEarnedUsd + amountUsd
+        totalEarnedUsd: row.totalEarnedUsd + amountUsd,
       }))
-  )
+  );
 
   // Upsert stats by week
   promises.push(
@@ -172,13 +170,13 @@ const updateSlicerStatsTotalOrders = ({
         week: currentWeek,
         totalOrders: 1n,
         totalProductsPurchased: 0n,
-        totalEarnedUsd: amountUsd
+        totalEarnedUsd: amountUsd,
       })
       .onConflictDoUpdate((row) => ({
         totalOrders: row.totalOrders + 1n,
-        totalEarnedUsd: row.totalEarnedUsd + amountUsd
+        totalEarnedUsd: row.totalEarnedUsd + amountUsd,
       }))
-  )
+  );
 
   // Upsert stats by day
   promises.push(
@@ -192,13 +190,13 @@ const updateSlicerStatsTotalOrders = ({
         day: currentDay,
         totalOrders: 1n,
         totalProductsPurchased: 0n,
-        totalEarnedUsd: amountUsd
+        totalEarnedUsd: amountUsd,
       })
       .onConflictDoUpdate((row) => ({
         totalOrders: row.totalOrders + 1n,
-        totalEarnedUsd: row.totalEarnedUsd + amountUsd
+        totalEarnedUsd: row.totalEarnedUsd + amountUsd,
       }))
-  )
+  );
 
-  return promises
-}
+  return promises;
+};

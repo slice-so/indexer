@@ -1,18 +1,19 @@
-import { ponder } from "ponder:registry"
+import { ponder } from "ponder:registry";
 import {
   currencySlicer,
   currency as currencyTable,
   payeeSlicer,
-  slicer
-} from "ponder:schema"
+  slicer,
+  slicerAddressToSlicerId,
+} from "ponder:schema";
 import {
   baseProtocolFee,
   createPayee,
   defaultRoyaltyPercentage,
   reducePayees,
-  upsertPayees
-} from "@/utils"
-import { zeroAddress } from "viem"
+  upsertPayees,
+} from "@/utils";
+import { zeroAddress } from "viem";
 
 ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
   const {
@@ -26,34 +27,34 @@ ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
       transferTimelock,
       controller,
       slicerFlags,
-      sliceCoreFlags
+      sliceCoreFlags,
     },
-    slicerVersion
-  } = event.args
-  const creator = event.transaction.from
+    slicerVersion,
+  } = event.args;
+  const creator = event.transaction.from;
 
   // Boolean flags ordered right to left: [isImmutable, currenciesControlled, productsControlled, acceptsAllCurrencies]
-  const isImmutable = (slicerFlags & 1) !== 0
-  const currenciesControlled = (slicerFlags & 2) !== 0
-  const productsControlled = (slicerFlags & 4) !== 0
-  const acceptsAllCurrencies = (slicerFlags & 8) !== 0
+  const isImmutable = (slicerFlags & 1) !== 0;
+  const currenciesControlled = (slicerFlags & 2) !== 0;
+  const productsControlled = (slicerFlags & 4) !== 0;
+  const acceptsAllCurrencies = (slicerFlags & 8) !== 0;
 
   // Boolean flags ordered right to left: [isCustomRoyaltyActive, isRoyaltyReceiverSlicer, resliceAllowed, transferWhileControlledAllowed]
-  const isCustomRoyaltyActive = (sliceCoreFlags & 1) !== 0
-  const isRoyaltyReceiverSlicer = (sliceCoreFlags & 2) !== 0
-  const resliceAllowed = (sliceCoreFlags & 4) !== 0
-  const transferWhileControlledAllowed = (sliceCoreFlags & 8) !== 0
+  const isCustomRoyaltyActive = (sliceCoreFlags & 1) !== 0;
+  const isRoyaltyReceiverSlicer = (sliceCoreFlags & 2) !== 0;
+  const resliceAllowed = (sliceCoreFlags & 4) !== 0;
+  const transferWhileControlledAllowed = (sliceCoreFlags & 8) !== 0;
 
   const allPayees = reducePayees([
     createPayee(creator),
     createPayee(slicerAddress),
-    ...payees
-  ])
+    ...payees,
+  ]);
 
   const totalSlices = payees.reduce(
     (acc, payee) => acc + BigInt(payee.shares),
     0n
-  )
+  );
 
   const promiseSlicer = db.insert(slicer).values({
     id: Number(slicerId),
@@ -81,35 +82,42 @@ ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
     royaltyReceiverId: isRoyaltyReceiverSlicer
       ? slicerAddress
       : controller !== zeroAddress
-        ? controller
-        : creator,
+      ? controller
+      : creator,
     totalOrders: 0n,
     totalProductsPurchased: 0n,
     totalEarnedUsd: 0n,
-    releasedUsd: 0n
-  })
+    releasedUsd: 0n,
+  });
+
+  const promiseSlicerAddressToSlicerId = db
+    .insert(slicerAddressToSlicerId)
+    .values({
+      slicerAddress: slicerAddress,
+      slicerId: Number(slicerId),
+    });
 
   // Create any missing payee
   const promisePayees = upsertPayees(
     db,
     allPayees.map((payee) => payee.account)
-  )
+  );
 
   // Create any missing currency
-  const currenciesArray = [zeroAddress, ...currencies]
+  const currenciesArray = [zeroAddress, ...currencies];
   const promiseCurrencies = db
     .insert(currencyTable)
     .values(currenciesArray.map((currency) => ({ id: currency })))
-    .onConflictDoNothing()
+    .onConflictDoNothing();
 
   const promisePayeeSlicers = db.insert(payeeSlicer).values(
     allPayees.map(({ account, shares, transfersAllowedWhileLocked }) => ({
       payeeId: account,
       slicerId: Number(slicerId),
       slices: shares,
-      transfersAllowedWhileLocked
+      transfersAllowedWhileLocked,
     }))
-  )
+  );
 
   const promiseCurrencySlicers = db.insert(currencySlicer).values(
     currenciesArray.map((currency) => ({
@@ -120,15 +128,16 @@ ponder.on("SliceCore:TokenSliced", async ({ event, context: { db } }) => {
       creatorFeePaid: 0n,
       referralFeePaid: 0n,
       releasedUsd: 0n,
-      totalEarned: 0n
+      totalEarned: 0n,
     }))
-  )
+  );
 
   await Promise.all([
     promiseSlicer,
     promisePayees,
     promiseCurrencies,
     promisePayeeSlicers,
-    promiseCurrencySlicers
-  ])
-})
+    promiseCurrencySlicers,
+    promiseSlicerAddressToSlicerId,
+  ]);
+});
