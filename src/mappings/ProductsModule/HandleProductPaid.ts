@@ -1,5 +1,5 @@
-import { ponder } from "ponder:registry"
-import type { Context } from "ponder:registry"
+import { ponder } from "ponder:registry";
+import type { Context } from "ponder:registry";
 import {
   currencySlicer,
   currencySlicerDay,
@@ -18,11 +18,11 @@ import {
   slicerStatsByMonth,
   slicerStatsByWeek,
   slicerStatsByYear,
-  slicer as slicerTable
-} from "ponder:schema"
-import { getDates, getUsdcAmount, upsertPayees } from "@/utils"
-import { type Transaction, and, eq, sql } from "ponder"
-import { type Address, zeroAddress } from "viem"
+  slicer as slicerTable,
+} from "ponder:schema";
+import { getDates, getUsdcAmount, upsertPayees } from "@/utils";
+import { type Transaction, and, eq, sql } from "ponder";
+import { type Address, zeroAddress } from "viem";
 
 const handleProductPaid = async ({
   context,
@@ -36,29 +36,36 @@ const handleProductPaid = async ({
   price,
   referrer = zeroAddress,
   parentSlicerId = undefined,
-  parentProductId = undefined
+  parentProductId = undefined,
 }: {
-  context: Context
-  transaction: Transaction
-  timestamp: bigint
-  slicerId: number
-  productId: number
-  quantity: bigint
-  buyer: Address
-  currency: Address
+  context: Context;
+  transaction: Transaction;
+  timestamp: bigint;
+  slicerId: number;
+  productId: number;
+  quantity: bigint;
+  buyer: Address;
+  currency: Address;
   price: {
-    eth: bigint
-    currency: bigint
-    ethExternalCall: bigint
-    currencyExternalCall: bigint
-  }
-  referrer?: Address
-  parentSlicerId?: number
-  parentProductId?: number
+    eth: bigint;
+    currency: bigint;
+    ethExternalCall: bigint;
+    currencyExternalCall: bigint;
+  };
+  referrer?: Address;
+  parentSlicerId?: number;
+  parentProductId?: number;
 }) => {
-  const { db } = context
-  const totalPaymentEth = price.eth + price.ethExternalCall
-  const totalPaymentCurrency = price.currency + price.currencyExternalCall
+  const { db } = context;
+  const totalPaymentEth = price.eth + price.ethExternalCall;
+  const totalPaymentCurrency = price.currency + price.currencyExternalCall;
+
+  const product = await db.find(productTable, {
+    slicerId,
+    id: productId,
+  });
+  const slicer = await db.find(slicerTable, { id: slicerId });
+  if (!product || !slicer) return;
 
   // Await queries that I need for the rest of the logic
   const [
@@ -67,56 +74,40 @@ const handleProductPaid = async ({
     paymentCurrencyUsd,
     externalPaymentCurrencyUsd,
     productResult,
-    orderSlicer
+    orderSlicer,
   ] = await Promise.all([
     getUsdcAmount(context, zeroAddress, price.eth),
     getUsdcAmount(context, zeroAddress, price.ethExternalCall),
     getUsdcAmount(context, currency, price.currency),
     getUsdcAmount(context, currency, price.currencyExternalCall),
-    db.sql
-      .update(productTable)
-      .set({
-        totalPurchases: sql`${productTable.totalPurchases} + ${quantity}`,
-        availableUnits: productTable.isInfinite
-          ? productTable.availableUnits
-          : sql`${productTable.availableUnits} - ${quantity}`
-      })
-      .where(
-        and(eq(productTable.slicerId, slicerId), eq(productTable.id, productId))
-      )
-      .from(slicerTable)
-      .returning({
-        categoryId: productTable.categoryId,
-        productTypeId: productTable.productTypeId,
-        referralFeeProduct: productTable.referralFeeProduct,
-        slicer: slicerTable
-      }),
+    db.update(productTable, { slicerId, id: productId }).set({
+      totalPurchases: product.totalPurchases + quantity,
+      availableUnits: product.isInfinite
+        ? product.availableUnits
+        : product.availableUnits - quantity,
+    }),
     db.find(orderSlicerTable, {
       orderId: transaction.hash,
-      slicerId
-    })
-  ])
-
-  const product = productResult?.[0]
-  const slicer = product?.slicer
-  if (!product || !slicer) return
+      slicerId,
+    }),
+  ]);
 
   const totalPaymentUsd =
     paymentEthUsd +
     externalPaymentEthUsd +
     paymentCurrencyUsd +
-    externalPaymentCurrencyUsd
+    externalPaymentCurrencyUsd;
 
   const payeesPromise = upsertPayees(db, [
     transaction.from,
     buyer,
-    ...(referrer !== zeroAddress ? [referrer] : [])
-  ])
+    ...(referrer !== zeroAddress ? [referrer] : []),
+  ]);
 
   const slicerPromise = db.update(slicerTable, { id: slicerId }).set((row) => ({
     totalProductsPurchased: row.totalProductsPurchased + quantity,
-    totalEarnedUsd: row.totalEarnedUsd + totalPaymentUsd
-  }))
+    totalEarnedUsd: row.totalEarnedUsd + totalPaymentUsd,
+  }));
 
   const payeeSlicerPromise = db
     .insert(payeeSlicer)
@@ -124,11 +115,11 @@ const handleProductPaid = async ({
       payeeId: buyer,
       slicerId,
       slices: 0n,
-      transfersAllowedWhileLocked: false
+      transfersAllowedWhileLocked: false,
     })
-    .onConflictDoNothing()
+    .onConflictDoNothing();
 
-  const currencyPromises = []
+  const currencyPromises = [];
   if (totalPaymentEth !== 0n) {
     currencyPromises.push(
       updateCurrencyTables({
@@ -137,9 +128,9 @@ const handleProductPaid = async ({
         buyer,
         currency: zeroAddress,
         amount: totalPaymentEth,
-        timestamp
+        timestamp,
       })
-    )
+    );
   }
 
   if (totalPaymentCurrency !== 0n) {
@@ -150,9 +141,9 @@ const handleProductPaid = async ({
         buyer,
         currency,
         amount: totalPaymentCurrency,
-        timestamp
+        timestamp,
       })
-    )
+    );
   }
 
   const statsPromises = updateSlicerStats({
@@ -161,23 +152,23 @@ const handleProductPaid = async ({
     quantity,
     timestamp,
     totalAmountUsd: totalPaymentUsd,
-    ordertoBeRecorded: !orderSlicer
-  })
+    ordertoBeRecorded: !orderSlicer,
+  });
 
   const referralFee =
     referrer !== zeroAddress
       ? product.referralFeeProduct || slicer.referralFeeStore || 0n
-      : 0n
+      : 0n;
   const referralAmount = getReferralAmount(
     currency === zeroAddress ? price.eth : price.currency,
     referralFee
-  )
+  );
   const referralAmountUsd = getReferralAmount(
     currency === zeroAddress ? paymentEthUsd : paymentCurrencyUsd,
     referralFee
-  )
+  );
 
-  const referrerPromise = []
+  const referrerPromise = [];
   if (referrer !== zeroAddress) {
     referrerPromise.push(
       db
@@ -191,13 +182,13 @@ const handleProductPaid = async ({
           paidToProtocol: 0n,
           totalCreatorFees: 0n,
           totalReferralFees: referralAmount,
-          totalReferralFeesUsd: referralAmountUsd
+          totalReferralFeesUsd: referralAmountUsd,
         })
         .onConflictDoUpdate((row) => ({
           totalReferralFees: row.totalReferralFees + referralAmount,
-          totalReferralFeesUsd: row.totalReferralFeesUsd + referralAmountUsd
+          totalReferralFeesUsd: row.totalReferralFeesUsd + referralAmountUsd,
         }))
-    )
+    );
   }
 
   const orderPromise = db
@@ -210,12 +201,12 @@ const handleProductPaid = async ({
       referrerId: referrer,
       totalPaymentUsd,
       referralAmount,
-      totalReferralUsd: referralAmountUsd
+      totalReferralUsd: referralAmountUsd,
     })
     .onConflictDoUpdate((row) => ({
       totalPaymentUsd: row.totalPaymentUsd + totalPaymentUsd,
-      totalReferralUsd: row.totalReferralUsd + referralAmountUsd
-    }))
+      totalReferralUsd: row.totalReferralUsd + referralAmountUsd,
+    }));
 
   const orderSlicerPromise = db
     .insert(orderSlicerTable)
@@ -223,12 +214,12 @@ const handleProductPaid = async ({
       orderId: transaction.hash,
       slicerId,
       totalPaymentUsd,
-      totalReferralUsd: referralAmountUsd
+      totalReferralUsd: referralAmountUsd,
     })
     .onConflictDoUpdate((row) => ({
       totalPaymentUsd: row.totalPaymentUsd + totalPaymentUsd,
-      totalReferralUsd: row.totalReferralUsd + referralAmountUsd
-    }))
+      totalReferralUsd: row.totalReferralUsd + referralAmountUsd,
+    }));
 
   const orderProductPromise = db
     .insert(orderProduct)
@@ -249,7 +240,7 @@ const handleProductPaid = async ({
       externalPaymentUsd: externalPaymentEthUsd + externalPaymentCurrencyUsd,
       referralEth: currency === zeroAddress ? referralAmount : 0n,
       referralCurrency: currency === zeroAddress ? 0n : referralAmount,
-      referralUsd: referralAmountUsd
+      referralUsd: referralAmountUsd,
     })
     .onConflictDoUpdate((row) => ({
       quantity: row.quantity + quantity,
@@ -260,10 +251,10 @@ const handleProductPaid = async ({
         row.externalPaymentCurrency + price.currencyExternalCall,
       referralEth: row.referralEth + referralAmount,
       referralCurrency: row.referralCurrency + referralAmount,
-      referralUsd: row.referralUsd + referralAmountUsd
-    }))
+      referralUsd: row.referralUsd + referralAmountUsd,
+    }));
 
-  const orderProductRelationPromise = []
+  const orderProductRelationPromise = [];
   if (parentSlicerId !== undefined && parentProductId !== undefined) {
     orderProductRelationPromise.push(
       db
@@ -274,10 +265,10 @@ const handleProductPaid = async ({
           orderParentSlicerId: parentSlicerId,
           orderParentProductId: parentProductId,
           orderSubSlicerId: slicerId,
-          orderSubProductId: productId
+          orderSubProductId: productId,
         })
         .onConflictDoNothing()
-    )
+    );
   }
 
   await Promise.all([
@@ -290,9 +281,9 @@ const handleProductPaid = async ({
     orderPromise,
     orderSlicerPromise,
     orderProductPromise,
-    ...orderProductRelationPromise
-  ])
-}
+    ...orderProductRelationPromise,
+  ]);
+};
 
 const updateSlicerStats = ({
   db,
@@ -300,21 +291,21 @@ const updateSlicerStats = ({
   quantity,
   timestamp,
   totalAmountUsd,
-  ordertoBeRecorded
+  ordertoBeRecorded,
 }: {
-  db: Context["db"]
-  slicerId: number
-  quantity: bigint
-  timestamp: bigint
-  totalAmountUsd: bigint
-  ordertoBeRecorded: boolean
+  db: Context["db"];
+  slicerId: number;
+  quantity: bigint;
+  timestamp: bigint;
+  totalAmountUsd: bigint;
+  ordertoBeRecorded: boolean;
 }) => {
   const { currentDay, currentWeek, currentMonth, currentYear } =
-    getDates(timestamp)
+    getDates(timestamp);
 
-  const newTotalOrders = ordertoBeRecorded ? 1n : 0n
+  const newTotalOrders = ordertoBeRecorded ? 1n : 0n;
 
-  const promises = []
+  const promises = [];
 
   // Upsert stats by year
   promises.push(
@@ -325,14 +316,14 @@ const updateSlicerStats = ({
         year: currentYear,
         totalOrders: newTotalOrders,
         totalProductsPurchased: quantity,
-        totalEarnedUsd: totalAmountUsd
+        totalEarnedUsd: totalAmountUsd,
       })
       .onConflictDoUpdate((row) => ({
         totalOrders: row.totalOrders + newTotalOrders,
         totalProductsPurchased: row.totalProductsPurchased + quantity,
-        totalEarnedUsd: row.totalEarnedUsd + totalAmountUsd
+        totalEarnedUsd: row.totalEarnedUsd + totalAmountUsd,
       }))
-  )
+  );
 
   // Upsert stats by month
   promises.push(
@@ -344,14 +335,14 @@ const updateSlicerStats = ({
         month: currentMonth,
         totalOrders: newTotalOrders,
         totalProductsPurchased: quantity,
-        totalEarnedUsd: totalAmountUsd
+        totalEarnedUsd: totalAmountUsd,
       })
       .onConflictDoUpdate((row) => ({
         totalOrders: row.totalOrders + newTotalOrders,
         totalProductsPurchased: row.totalProductsPurchased + quantity,
-        totalEarnedUsd: row.totalEarnedUsd + totalAmountUsd
+        totalEarnedUsd: row.totalEarnedUsd + totalAmountUsd,
       }))
-  )
+  );
 
   // Upsert stats by week
   promises.push(
@@ -364,14 +355,14 @@ const updateSlicerStats = ({
         week: currentWeek,
         totalOrders: newTotalOrders,
         totalProductsPurchased: quantity,
-        totalEarnedUsd: totalAmountUsd
+        totalEarnedUsd: totalAmountUsd,
       })
       .onConflictDoUpdate((row) => ({
         totalOrders: row.totalOrders + newTotalOrders,
         totalProductsPurchased: row.totalProductsPurchased + quantity,
-        totalEarnedUsd: row.totalEarnedUsd + totalAmountUsd
+        totalEarnedUsd: row.totalEarnedUsd + totalAmountUsd,
       }))
-  )
+  );
 
   // Upsert stats by day
   promises.push(
@@ -385,35 +376,35 @@ const updateSlicerStats = ({
         day: currentDay,
         totalOrders: newTotalOrders,
         totalProductsPurchased: quantity,
-        totalEarnedUsd: totalAmountUsd
+        totalEarnedUsd: totalAmountUsd,
       })
       .onConflictDoUpdate((row) => ({
         totalOrders: row.totalOrders + newTotalOrders,
         totalProductsPurchased: row.totalProductsPurchased + quantity,
-        totalEarnedUsd: row.totalEarnedUsd + totalAmountUsd
+        totalEarnedUsd: row.totalEarnedUsd + totalAmountUsd,
       }))
-  )
+  );
 
-  return promises
-}
+  return promises;
+};
 
 const updateCurrencySlicerStats = ({
   db,
   slicerId,
   currency,
   amount,
-  timestamp
+  timestamp,
 }: {
-  db: Context["db"]
-  slicerId: number
-  currency: `0x${string}`
-  amount: bigint
-  timestamp: bigint
+  db: Context["db"];
+  slicerId: number;
+  currency: `0x${string}`;
+  amount: bigint;
+  timestamp: bigint;
 }) => {
   const { currentDay, currentWeek, currentMonth, currentYear } =
-    getDates(timestamp)
+    getDates(timestamp);
 
-  const promises = []
+  const promises = [];
 
   // Upsert currency slicer day
   promises.push(
@@ -423,12 +414,12 @@ const updateCurrencySlicerStats = ({
         slicerId,
         currencyId: currency,
         totalEarned: amount,
-        day: currentDay
+        day: currentDay,
       })
       .onConflictDoUpdate((row) => ({
-        totalEarned: BigInt(row.totalEarned ?? 0n) + amount
+        totalEarned: BigInt(row.totalEarned ?? 0n) + amount,
       }))
-  )
+  );
 
   // Upsert currency slicer week
   promises.push(
@@ -438,12 +429,12 @@ const updateCurrencySlicerStats = ({
         slicerId,
         currencyId: currency,
         totalEarned: amount,
-        week: currentWeek
+        week: currentWeek,
       })
       .onConflictDoUpdate((row) => ({
-        totalEarned: BigInt(row.totalEarned ?? 0n) + amount
+        totalEarned: BigInt(row.totalEarned ?? 0n) + amount,
       }))
-  )
+  );
 
   // Upsert currency slicer month
   promises.push(
@@ -453,12 +444,12 @@ const updateCurrencySlicerStats = ({
         slicerId,
         currencyId: currency,
         totalEarned: amount,
-        month: currentMonth
+        month: currentMonth,
       })
       .onConflictDoUpdate((row) => ({
-        totalEarned: BigInt(row.totalEarned ?? 0n) + amount
+        totalEarned: BigInt(row.totalEarned ?? 0n) + amount,
       }))
-  )
+  );
 
   // Upsert currency slicer year
   promises.push(
@@ -468,15 +459,15 @@ const updateCurrencySlicerStats = ({
         slicerId,
         currencyId: currency,
         totalEarned: amount,
-        year: currentYear
+        year: currentYear,
       })
       .onConflictDoUpdate((row) => ({
-        totalEarned: BigInt(row.totalEarned ?? 0n) + amount
+        totalEarned: BigInt(row.totalEarned ?? 0n) + amount,
       }))
-  )
+  );
 
-  return promises
-}
+  return promises;
+};
 
 const updateCurrencyTables = async ({
   db,
@@ -484,14 +475,14 @@ const updateCurrencyTables = async ({
   buyer,
   currency,
   amount,
-  timestamp
+  timestamp,
 }: {
-  db: Context["db"]
-  slicerId: number
-  buyer: Address
-  currency: Address
-  amount: bigint
-  timestamp: bigint
+  db: Context["db"];
+  slicerId: number;
+  buyer: Address;
+  currency: Address;
+  amount: bigint;
+  timestamp: bigint;
 }) => {
   const buyerSlicerCurrencyPromise = db
     .insert(payeeSlicerCurrency)
@@ -499,11 +490,11 @@ const updateCurrencyTables = async ({
       payeeId: buyer,
       currencyId: currency,
       slicerId,
-      paidForProducts: amount
+      paidForProducts: amount,
     })
     .onConflictDoUpdate((row) => ({
-      paidForProducts: row.paidForProducts + amount
-    }))
+      paidForProducts: row.paidForProducts + amount,
+    }));
 
   const buyerCurrencyPromise = db
     .insert(payeeCurrency)
@@ -516,9 +507,9 @@ const updateCurrencyTables = async ({
       paidToProtocol: 0n,
       totalCreatorFees: 0n,
       totalReferralFees: 0n,
-      totalReferralFeesUsd: 0n
+      totalReferralFeesUsd: 0n,
     })
-    .onConflictDoNothing()
+    .onConflictDoNothing();
 
   const currencySlicerPromise = db
     .insert(currencySlicer)
@@ -530,39 +521,39 @@ const updateCurrencyTables = async ({
       releasedUsd: 0n,
       creatorFeePaid: 0n,
       referralFeePaid: 0n,
-      totalEarned: amount
+      totalEarned: amount,
     })
     .onConflictDoUpdate((row) => ({
       released: row.released + amount,
       releasedUsd: row.releasedUsd + amount,
       creatorFeePaid: row.creatorFeePaid + amount,
       referralFeePaid: row.referralFeePaid + amount,
-      totalEarned: row.totalEarned + amount
-    }))
+      totalEarned: row.totalEarned + amount,
+    }));
 
   const currencySlicerStatsPromise = updateCurrencySlicerStats({
     db,
     slicerId,
     currency,
     amount,
-    timestamp
-  })
+    timestamp,
+  });
 
   return Promise.all([
     buyerSlicerCurrencyPromise,
     buyerCurrencyPromise,
     currencySlicerPromise,
-    ...currencySlicerStatsPromise
-  ])
-}
+    ...currencySlicerStatsPromise,
+  ]);
+};
 
 const getReferralAmount = (amount: bigint, referralFee: bigint) =>
-  referralFee !== 0n ? (amount * referralFee) / 10_000n : 0n
+  referralFee !== 0n ? (amount * referralFee) / 10_000n : 0n;
 
 ponder.on(
   "ProductsModule:ProductPaid(uint256 indexed slicerId, uint256 indexed productId, uint256 quantity, address indexed buyer, address currency, (uint256 eth, uint256 currency, uint256 ethExternalCall, uint256 currencyExternalCall) price)",
   async ({ event: { args, block, transaction }, context }) => {
-    const { slicerId, productId, quantity, buyer, currency, price } = args
+    const { slicerId, productId, quantity, buyer, currency, price } = args;
 
     await handleProductPaid({
       context,
@@ -573,10 +564,10 @@ ponder.on(
       quantity,
       buyer,
       currency,
-      price
-    })
+      price,
+    });
   }
-)
+);
 
 ponder.on(
   "ProductsModule:ProductPaid(uint256 indexed slicerId, uint256 indexed productId, uint256 quantity, address indexed buyer, address currency, (uint256 eth, uint256 currency, uint256 ethExternalCall, uint256 currencyExternalCall) price, address referrer, uint256 parentSlicerId, uint256 parentProductId)",
@@ -590,8 +581,8 @@ ponder.on(
       price,
       referrer,
       parentSlicerId,
-      parentProductId
-    } = args
+      parentProductId,
+    } = args;
 
     await handleProductPaid({
       context,
@@ -605,7 +596,7 @@ ponder.on(
       price,
       referrer,
       parentSlicerId: Number(parentSlicerId),
-      parentProductId: Number(parentProductId)
-    })
+      parentProductId: Number(parentProductId),
+    });
   }
-)
+);
